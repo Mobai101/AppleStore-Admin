@@ -2,7 +2,7 @@ const { Schema, model } = require("mongoose");
 const bcrypt = require("bcryptjs");
 
 const userSchema = new Schema({
-  username: {
+  email: {
     type: String,
     required: true,
     unique: true,
@@ -16,19 +16,16 @@ const userSchema = new Schema({
     required: true,
   },
   phoneNumber: {
-    type: Number,
-    required: true,
-  },
-  idCardNumber: {
-    type: Number,
-    required: true,
-  },
-  email: {
     type: String,
     required: true,
-    unique: true,
   },
-  isAdmin: { type: Boolean, default: false },
+  cart: [
+    {
+      productId: { type: Schema.Types.ObjectId, ref: "Product" },
+      count: { type: Number },
+    },
+  ],
+  role: { type: String, default: "user" },
 });
 
 userSchema.pre("save", async function (next) {

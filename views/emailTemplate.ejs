@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Email Template</title>
+    <style type="text/css">
+      img {
+        width: 100px;
+      }
+      td,
+      th {
+        text-align: center;
+        padding: 0.5rem;
+        border: 1px solid black;
+        font-size: 1.1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Xin chào <%= user %></h1>
+    <h3>Phone: <%= phone %></h3>
+    <h3>Address: <%= address %></h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Tên sản phẩm</th>
+          <th>Hình ảnh</th>
+          <th>Giá</th>
+          <th>Số lượng</th>
+          <th>Thành tiền</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% cart.forEach((cartItem) => { %>
+        <tr>
+          <td><%= cartItem.productId.name %></td>
+          <td>
+            <img
+              src="<%= cartItem.productId.images[0] %>"
+              alt="<%= cartItem.productId.name %>"
+            />
+          </td>
+          <td><%= cartItem.productId.price.toLocaleString() %> VND</td>
+          <td><%= cartItem.count %></td>
+          <td>
+            <%= (Number(cartItem.productId.price) *
+            cartItem.count).toLocaleString() %> VND
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <h1>Tổng Thanh Toán: <br /><%= total %> VND</h1>
+    <h1>Cảm ơn bạn!</h1>
+  </body>
+</html>

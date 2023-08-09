@@ -1,258 +1,120 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const { validationResult } = require("express-validator");
 const User = require("../models/user");
-const Hotel = require("../models/hotel");
-const Room = require("../models/room");
-const Transaction = require("../models/transaction");
-
-exports.postLogin = async (req, res, next) => {
-  email = req.body.email;
-  password = req.body.password;
-
-  // Find user from database
-  const foundUser = await User.findOne({ email: email });
-
-  // Check if user is admin
-  if (!foundUser.isAdmin) {
-    return res.status(401).json({ message: "User is not admin" });
-  }
-
-  // Check if user exist
-  if (!foundUser) {
-    return res.status(401).json({ message: "User not found" });
-  }
-
-  // Check if password match
-  const checkPass = await bcrypt.compare(req.body.password, foundUser.password);
-  if (!checkPass) {
-    return res.status(401).json({ message: "Password does not match" });
-  } else {
-    const token = jwt.sign({ id: foundUser._id }, "super secret key");
-    res.status(200).json({
-      status: "logged in",
-      token: token,
-      user: { username: foundUser.username, email: foundUser.email },
-    });
-  }
-};
-
-exports.postRegister = (req, res, next) => {
-  const newUser = new User({
-    username: req.body.username,
-    fullName: req.body.fullName,
-    email: req.body.email,
-    password: req.body.password,
-    idCardNumber: req.body.idCardNumber,
-    phoneNumber: req.body.phoneNumber,
-    isAdmin: true,
-  });
-  newUser
-    .save()
-    .then((result) => {
-      console.log(result);
-      res.status(201).json({ message: "User created" });
-    })
-    .catch((err) => {
-      res.status(401).json({ message: err.message });
-    });
-};
+const Product = require("../models/product");
+const Order = require("../models/Order");
+const clearImage = require("../util/clearImage");
 
 exports.getDashboard = async (req, res, next) => {
-  // fetching data to send to front end
-  const allUser = await User.find({});
-  const allTransactions = await Transaction.find({})
-    .populate("user")
-    .populate("hotel")
-    .limit(8);
-  const allEarning = allTransactions.reduce(
-    (preVal, curVal) => preVal + +curVal.price,
-    0
-  );
+  var date = new Date();
+  var firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
 
-  res.status(200).json({ userNo: allUser.length, allTransactions, allEarning });
-};
+  try {
+    const countUser = await User.countDocuments({ role: "user" });
 
-exports.getTransactions = async (req, res, next) => {
-  const allTransactions = await Transaction.find({})
-    .populate("user")
-    .populate("hotel");
-  res.status(200).json({ allTransactions });
-};
+    const allOrders = await Order.find({});
 
-// Hotel
-exports.getHotels = async (req, res, next) => {
-  const allHotels = await Hotel.find({}).populate("rooms");
-  res.status(200).json(allHotels);
-};
+    const allOrdersOfMonth = allOrders.filter(
+      (order) => order.createdAt >= firstDayOfMonth
+    );
 
-exports.getNewHotel = async (req, res, next) => {
-  const allRooms = await Room.find({}).select("title");
-  res.status(200).json({ allRooms });
-};
+    const earningOfMonth = allOrdersOfMonth.reduce(
+      (prev, value) => prev + +value.total,
+      0
+    );
 
-exports.postNewHotel = async (req, res, next) => {
-  if (
-    !req.body.name ||
-    !req.body.type ||
-    !req.body.city ||
-    !req.body.address ||
-    !req.body.distance ||
-    !req.body.rating ||
-    !req.body.desc ||
-    !req.body.price
-  ) {
-    res.status(422).json({
-      message: "Validation error: please provide all required fields",
-    });
+    const newOrdersOfMonth = allOrdersOfMonth.length;
+
+    res
+      .status(200)
+      .json({ countUser, allOrders, earningOfMonth, newOrdersOfMonth });
+  } catch (error) {
+    res.status(500).json({ message: "Something went wrong!" });
   }
-
-  const rooms = req.body.rooms.map((room) => room._id);
-
-  const newHotel = new Hotel({
-    name: req.body.name,
-    type: req.body.type,
-    city: req.body.city,
-    address: req.body.address,
-    distance: req.body.distance,
-    desc: req.body.desc,
-    rating: req.body.rating,
-    cheapestPrice: req.body.price,
-    photos: req.body.images,
-    featured: req.body.featured === "true",
-    rooms: rooms,
-  });
-  await newHotel.save();
-  res.status(201).json({ message: "hotel created" });
 };
 
-exports.getDeleteHotel = async (req, res, next) => {
-  const allTransactions = await Transaction.find({}).select("hotel -_id");
-  const allTransactionsHotels = allTransactions.map((tran) =>
-    tran.hotel.toString()
-  );
-  if (allTransactionsHotels.includes(req.params.hotelId)) {
+exports.deleteProduct = async (req, res, next) => {
+  const productId = req.params.productId;
+  try {
+    const foundProduct = await Product.findById(productId);
+    foundProduct.images.forEach((imageUrl) => {
+      const imagePath = imageUrl.replace(`${process.env.BACKEND_URL}/`, "");
+      clearImage(`public\\${imagePath}`);
+    });
+
+    await Product.findByIdAndDelete(productId);
+    res.status(200).json({ message: "Product deleted successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: "Something went wrong!" });
+  }
+};
+
+exports.postAddProduct = async (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    for (let i = 0; i < req.files.length; i++) {
+      clearImage(req.files[i].path);
+    }
+
     return res
-      .status(400)
-      .json({ message: "Hotel already has at least 1 transaction" });
-  }
-  await Hotel.findByIdAndDelete(req.params.hotelId);
-  res.status(200).json({ message: "Hotel deleted successfully" });
-};
-
-exports.getEditHotel = async (req, res, next) => {
-  const allRooms = await Room.find({}).select("title");
-  const foundHotel = await Hotel.findById(req.params.hotelId).populate(
-    "rooms",
-    "title"
-  );
-  res.status(200).json({ allRooms, foundHotel });
-};
-
-exports.postEditHotel = async (req, res, next) => {
-  if (
-    !req.body.name ||
-    !req.body.type ||
-    !req.body.city ||
-    !req.body.address ||
-    !req.body.distance ||
-    !req.body.rating ||
-    !req.body.desc ||
-    !req.body.price
-  ) {
-    res.status(422).json({
-      message: "Validation error: please provide all required fields",
-    });
+      .status(422)
+      .json({ message: errors.array()[0].msg, errors: errors.errors });
   }
 
-  const rooms = req.body.rooms.map((room) => room._id);
-
-  await Hotel.findByIdAndUpdate(req.params.hotelId, {
-    name: req.body.name,
-    type: req.body.type,
-    city: req.body.city,
-    address: req.body.address,
-    distance: req.body.distance,
-    desc: req.body.desc,
-    rating: req.body.rating,
-    cheapestPrice: req.body.price,
-    photos: req.body.images,
-    featured: req.body.featured === "true",
-    rooms: rooms,
-  });
-  res.status(201).json({ message: "hotel updated" });
-};
-
-// Room
-exports.getRooms = async (req, res, next) => {
-  const allRooms = await Room.find({});
-  res.status(200).json(allRooms);
-};
-
-exports.postNewRoom = async (req, res, next) => {
-  if (
-    !req.body.title ||
-    !req.body.desc ||
-    !req.body.price ||
-    !req.body.maxPeople ||
-    req.body.rooms.length === 0
-  ) {
-    res.status(422).json({
-      message: "Validation error: please provide all required fields",
-    });
-  }
-
-  const newRoom = new Room({
-    title: req.body.title,
-    desc: req.body.desc,
-    price: req.body.price,
-    maxPeople: req.body.maxPeople,
-    roomNumbers: req.body.rooms,
-  });
-  await newRoom.save();
-  res.status(201).json({ message: "room created" });
-};
-
-exports.getEditRoom = async (req, res, next) => {
-  const foundRoom = await Room.findById(req.params.roomId);
-  res.status(200).json(foundRoom);
-};
-
-exports.postEditRoom = async (req, res, next) => {
-  console.log(req.body);
-
-  if (
-    !req.body.title ||
-    !req.body.desc ||
-    !req.body.price ||
-    !req.body.maxPeople ||
-    req.body.rooms.length === 0
-  ) {
-    res.status(422).json({
-      message: "Validation error: please provide all required fields",
-    });
-  }
-
-  await Room.findByIdAndUpdate(req.params.roomId, {
-    title: req.body.title,
-    desc: req.body.desc,
-    price: req.body.price,
-    maxPeople: req.body.maxPeople,
-    roomNumbers: req.body.rooms,
-  });
-
-  res.status(201).json({ message: "room updated" });
-};
-
-exports.getDeleteRoom = async (req, res, next) => {
-  const allTransactions = await Transaction.find({
-    room: req.params.roomId,
-    $or: [{ status: "Booked" }, { status: "CheckIn" }],
-  });
-  if (allTransactions.length >= 1) {
+  if (req.files.length === 0) {
     return res
-      .status(400)
-      .json({ message: "Room already have customer Booked or Checked In" });
+      .status(422)
+      .json({ message: "Please provide at least 1 image!" });
   }
-  await Room.findByIdAndDelete(req.params.roomId);
-  res.status(200).json({ message: "Room deleted successfully" });
+
+  const imagesArr = req.files.map(
+    (file) =>
+      `${process.env.BACKEND_URL}${file.path
+        .replace("public", "")
+        .replaceAll("\\", "/")}`
+  );
+
+  const newProduct = new Product({
+    name: req.body.name,
+    price: req.body.price,
+    category: req.body.category,
+    short_desc: req.body.shortdesc,
+    long_desc: req.body.longdesc,
+    images: imagesArr,
+  });
+  try {
+    await newProduct.save();
+    res.status(201).json({ message: "Product create successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: "Something went Wrong!" });
+  }
+};
+
+exports.putEditProduct = async (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res
+      .status(422)
+      .json({ message: errors.array()[0].msg, errors: errors.errors });
+  }
+
+  try {
+    const foundProduct = await Product.findById(req.params.productId);
+    if (!foundProduct) {
+      return res.status(404).json({ message: "Product not found!" });
+    }
+
+    foundProduct.name = req.body.name;
+    foundProduct.price = req.body.price;
+    foundProduct.category = req.body.category;
+    foundProduct.short_desc = req.body.shortdesc;
+    foundProduct.long_desc = req.body.longdesc;
+    foundProduct.count = req.body.count;
+
+    await foundProduct.save();
+    res.status(200).json({ message: "Product updated successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: "Something went Wrong!" });
+  }
 };
