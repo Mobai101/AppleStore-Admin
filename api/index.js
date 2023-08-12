@@ -1,5 +1,6 @@
 const compression = require("compression");
-const socketIO = require("./util/socket");
+const socketIO = require("../util/socket");
+
 const fs = require("fs");
 const morgan = require("morgan");
 const helmet = require("helmet");
@@ -9,11 +10,11 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 
-const authRoute = require("./routes/auth");
-const shopRoute = require("./routes/shop");
-const adminRoute = require("./routes/admin");
-const chatRoute = require("./routes/chat");
-const errorController = require("./controllers/error");
+const authRoute = require("../routes/auth");
+const shopRoute = require("../routes/shop");
+const adminRoute = require("../routes/admin");
+const chatRoute = require("../routes/chat");
+const errorController = require("../controllers/error");
 
 const app = express();
 
