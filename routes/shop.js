@@ -35,4 +35,9 @@ router.post("/email", authUser, postOrderValidator, postOrder);
 router.get("/histories", authUser, getOrderHistory);
 router.get("/histories/:orderId", authUser, getOrderDetail);
 
+// health route for deployment
+router.get("/healthz", (req, res, next) => {
+  res.status(200).json({ message: "server running" });
+});
+
 module.exports = router;
