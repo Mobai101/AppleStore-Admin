@@ -58,8 +58,10 @@ mongoose
     `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@cluster0.abyljau.mongodb.net/${process.env.MONGO_DATABASE}?retryWrites=true&w=majority`
   )
   .then(() => {
-    const server = app.listen(process.env.PORT || 5000);
+    const port = process.env.PORT || 5000;
+    const server = app.listen(port);
     const io = socketIO.init(server);
     io.on("connection", (socket) => {});
+    console.log(`connected port ${port}`);
   })
   .catch((err) => console.log(err));
